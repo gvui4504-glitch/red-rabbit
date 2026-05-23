@@ -13,6 +13,143 @@ import streamlit as st
 
 import ai
 
+_HERE = Path(__file__).parent
+_LOGO = _HERE / "assets" / "red-rabbit.png"
+
+
+# ============================================================
+# 全局 CSS — 红白配色精细化
+# ============================================================
+_CUSTOM_CSS = """
+<style>
+/* 隐藏 Streamlit 默认 header / footer，让页面更"产品化" */
+#MainMenu {visibility: hidden;}
+footer {visibility: hidden;}
+[data-testid="stHeader"] {background: transparent;}
+
+/* 主标题加红色下划线 */
+h1 {
+    color: #1F1F1F;
+    font-weight: 800 !important;
+    border-bottom: 3px solid #FF2442;
+    padding-bottom: 0.3em;
+    margin-bottom: 0.8em;
+}
+
+/* h2 加左边红条 */
+h2 {
+    color: #1F1F1F;
+    padding-left: 14px !important;
+    border-left: 5px solid #FF2442;
+    margin-top: 1.2em !important;
+}
+
+h3 {
+    color: #1F1F1F;
+    margin-top: 1em !important;
+}
+
+/* st.metric 值变红 + 加粗 */
+[data-testid="stMetricValue"] {
+    color: #FF2442 !important;
+    font-weight: 800 !important;
+}
+[data-testid="stMetricLabel"] {
+    color: #666 !important;
+    font-weight: 500;
+}
+
+/* Primary 按钮：实心红 + 阴影 + hover 提升 */
+.stButton > button[kind="primary"] {
+    background-color: #FF2442;
+    color: white;
+    border: none;
+    border-radius: 999px;
+    padding: 0.6em 1.5em;
+    font-weight: 600;
+    box-shadow: 0 4px 14px rgba(255, 36, 66, 0.35);
+    transition: all 0.15s ease;
+}
+.stButton > button[kind="primary"]:hover {
+    background-color: #E61E3A;
+    box-shadow: 0 6px 20px rgba(255, 36, 66, 0.45);
+    transform: translateY(-2px);
+}
+.stButton > button[kind="primary"]:disabled {
+    background-color: #FFB8C5;
+    box-shadow: none;
+    color: white;
+}
+
+/* Secondary 按钮：白底红边 */
+.stButton > button:not([kind="primary"]) {
+    background-color: #FFFFFF;
+    color: #FF2442;
+    border: 1.5px solid #FFB8C5;
+    border-radius: 999px;
+    font-weight: 500;
+    transition: all 0.15s;
+}
+.stButton > button:not([kind="primary"]):hover {
+    border-color: #FF2442;
+    background-color: #FFF5F7;
+}
+
+/* 文件上传区：淡粉底 + 红色虚线边 */
+[data-testid="stFileUploaderDropzone"] {
+    background-color: #FFF7F8;
+    border: 2px dashed #FFB8C5;
+    border-radius: 12px;
+}
+[data-testid="stFileUploaderDropzone"]:hover {
+    border-color: #FF2442;
+    background-color: #FFEFF1;
+}
+
+/* 进度条变红 */
+.stProgress > div > div > div > div {
+    background-color: #FF2442 !important;
+}
+
+/* Expander 边框圆角 */
+[data-testid="stExpander"] {
+    border-radius: 10px;
+    border: 1px solid #FFE0E5;
+}
+
+/* Info / success / error 卡片更圆 */
+[data-testid="stAlert"] {
+    border-radius: 10px;
+}
+
+/* Sidebar 整体 */
+[data-testid="stSidebar"] {
+    background-color: #FFF7F8;
+}
+[data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3 {
+    border: none;
+    padding-left: 0;
+    color: #FF2442;
+}
+
+/* Caption 颜色 */
+.caption, [data-testid="stCaptionContainer"] {
+    color: #888;
+}
+
+/* 表格圆角（如果有用到） */
+[data-testid="stTable"] {
+    border-radius: 10px;
+    overflow: hidden;
+}
+</style>
+"""
+
+
+def _inject_styles() -> None:
+    """注入全局 CSS。每次 rerun 都会跑一次（Streamlit 限制），但很轻量。"""
+    st.markdown(_CUSTOM_CSS, unsafe_allow_html=True)
+
 # 5 维度展示元信息
 _DIMENSIONS = [
     ("visual_impact", "⚡ 视觉冲击", "首屏 0.3 秒抓眼能力"),
@@ -56,26 +193,41 @@ def _reset_diagnosis() -> None:
 # 🩺 诊断页
 # ============================================================
 def render_diagnose() -> None:
-    st.title("🩺 红兔 · 封面体检")
-    st.caption("上传你的小红书封面，AI 医师给个体检 + 处方 + 改进版预览")
+    # 红底 hero banner
+    st.markdown(
+        """
+        <div style='background: linear-gradient(135deg, #FF2442 0%, #FF6B7E 100%);
+                    padding: 1.8em 2em; border-radius: 18px; margin-bottom: 1.5em;
+                    box-shadow: 0 6px 24px rgba(255, 36, 66, 0.25);'>
+            <div style='font-size:2.2em; font-weight:800; color:white; line-height:1.1;'>
+                🩺 封面体检室
+            </div>
+            <div style='color:rgba(255,255,255,0.92); margin-top:0.4em; font-size:1.05em;'>
+                上传你的小红书封面 → AI 医师给评分 + 病灶诊断 + 处方 + 改进版
+            </div>
+            <div style='color:rgba(255,255,255,0.8); margin-top:0.6em; font-size:0.9em;'>
+                ⚡ 视觉冲击　📝 文字呈现　🎯 构图主体　🎨 色彩情绪　✨ 小红书味
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
     if not ai.has_any_key():
         st.error("⚠️ 没有可用的 OpenAI key，去 ⚙️ 设置填一个")
         return
 
-    # 配额条
+    # 配额条（仅在受限模式下显示，无限模式 sidebar 已有）
     a_left = ai.remaining_analyze()
     i_left = ai.remaining_image()
-    if a_left == -1:
-        st.success("✨ 无限次模式")
-    else:
-        c1, c2, c3 = st.columns(3)
-        c1.metric("剩余诊断次数", f"{a_left} / {ai.DEFAULT_QUOTA_ANALYZE}")
-        c2.metric("剩余生图次数", f"{i_left} / {ai.DEFAULT_QUOTA_IMAGE}")
+    if a_left != -1:
+        c1, c2, c3 = st.columns([1, 1, 2])
+        c1.metric("剩余诊断", f"{a_left} / {ai.DEFAULT_QUOTA_ANALYZE}")
+        c2.metric("剩余生图", f"{i_left} / {ai.DEFAULT_QUOTA_IMAGE}")
         with c3:
-            st.caption("⚙️ 用完了？设置页填自己的 key 或输解锁码")
-
-    st.markdown("---")
+            st.caption(
+                "⚙️ 用完了？设置页填自己的 OpenAI key 或输入解锁码即可继续"
+            )
 
     # 上传区
     col_up, col_preview = st.columns([3, 2])
@@ -222,7 +374,21 @@ def render_diagnose() -> None:
 # ⚙️ 设置页
 # ============================================================
 def render_settings() -> None:
-    st.title("⚙️ 设置")
+    # 红底 hero（更小、更安静的版本，因为设置页不是主舞台）
+    st.markdown(
+        """
+        <div style='background: linear-gradient(135deg, #FF6B7E 0%, #FFB8C5 100%);
+                    padding: 1.2em 1.8em; border-radius: 16px; margin-bottom: 1.5em;'>
+            <div style='font-size:1.6em; font-weight:700; color:white;'>
+                ⚙️ 设置
+            </div>
+            <div style='color:rgba(255,255,255,0.92); margin-top:0.2em; font-size:0.95em;'>
+                解锁码 / OpenAI key / base URL — 都在这里改
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
     cfg = ai.load_config()
 
@@ -281,32 +447,67 @@ def render_settings() -> None:
 # main
 # ============================================================
 def main() -> None:
-    st.set_page_config(page_title="红兔", page_icon="🐰", layout="wide")
-
-    st.sidebar.title("🐰 红兔")
-    st.sidebar.caption("小红书封面 AI 体检")
-    st.sidebar.markdown("---")
-
-    if "page" not in st.session_state:
-        st.session_state["page"] = "🩺 封面诊断"
-
-    PAGES = ["🩺 封面诊断", "⚙️ 设置"]
-    page = st.sidebar.radio(
-        "导航", PAGES, key="page", label_visibility="collapsed"
+    # page icon 用本地 PNG（红底白兔），没有就 fallback 到 emoji
+    page_icon = str(_LOGO) if _LOGO.exists() else "🐰"
+    st.set_page_config(
+        page_title="红兔 · 小红书封面诊断",
+        page_icon=page_icon,
+        layout="wide",
+        initial_sidebar_state="expanded",
     )
 
-    # 侧边栏状态
-    st.sidebar.markdown("---")
-    if ai.is_unlimited():
-        st.sidebar.success("✨ 无限次")
-    elif ai.is_using_user_key():
-        st.sidebar.info("🔑 用户 key")
-    else:
-        st.sidebar.markdown(
-            f"**📊 配额**\n"
-            f"- 诊断：{ai.remaining_analyze()} / {ai.DEFAULT_QUOTA_ANALYZE}\n"
-            f"- 生图：{ai.remaining_image()} / {ai.DEFAULT_QUOTA_IMAGE}"
+    _inject_styles()
+
+    # ===== Sidebar =====
+    with st.sidebar:
+        # 顶部 logo + 名字
+        if _LOGO.exists():
+            col_logo, col_name = st.columns([1, 2])
+            with col_logo:
+                st.image(str(_LOGO), width=64)
+            with col_name:
+                st.markdown(
+                    "<h1 style='margin:0; padding:0; font-size:2em;'>红兔</h1>"
+                    "<div style='color:#888; font-size:0.85em; margin-top:-4px;'>"
+                    "小红书封面 AI 体检</div>",
+                    unsafe_allow_html=True,
+                )
+        else:
+            st.title("🐰 红兔")
+            st.caption("小红书封面 AI 体检")
+
+        st.markdown("<hr style='margin:1em 0; border-color:#FFE0E5;'>", unsafe_allow_html=True)
+
+        if "page" not in st.session_state:
+            st.session_state["page"] = "🩺 封面诊断"
+
+        PAGES = ["🩺 封面诊断", "⚙️ 设置"]
+        page = st.radio(
+            "导航", PAGES, key="page", label_visibility="collapsed"
         )
+
+        st.markdown("<hr style='margin:1em 0; border-color:#FFE0E5;'>", unsafe_allow_html=True)
+
+        # 状态卡片
+        if ai.is_unlimited():
+            st.success("✨ 无限次模式")
+        elif ai.is_using_user_key():
+            st.info("🔑 用户 key 模式")
+        else:
+            a, i = ai.remaining_analyze(), ai.remaining_image()
+            st.markdown(
+                f"""
+                <div style='background:#FFFFFF; padding:12px 14px; border-radius:10px;
+                            border:1px solid #FFE0E5;'>
+                    <div style='font-weight:600; color:#FF2442; margin-bottom:6px;'>📊 免费配额</div>
+                    <div style='font-size:0.9em; color:#444;'>
+                        诊断 <b style='color:#FF2442;'>{a}</b> / {ai.DEFAULT_QUOTA_ANALYZE}<br>
+                        生图 <b style='color:#FF2442;'>{i}</b> / {ai.DEFAULT_QUOTA_IMAGE}
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
     if page == "🩺 封面诊断":
         render_diagnose()

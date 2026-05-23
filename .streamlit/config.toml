@@ -1,0 +1,13 @@
+[theme]
+base = "light"
+primaryColor = "#FF2442"               # 小红书红 — 主按钮 / 选中态 / 滑块
+backgroundColor = "#FFFFFF"            # 主背景
+secondaryBackgroundColor = "#FFF7F8"   # 浅粉 — sidebar / metric / expander 等次要面板
+textColor = "#1F1F1F"                  # 主文字色
+font = "sans serif"
+
+[server]
+# 默认浏览器自动打开
+headless = false
+# 默认端口（本地开发；云端会被 Streamlit Cloud 覆盖）
+port = 8502
