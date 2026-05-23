@@ -94,26 +94,31 @@ def _save_quota(d: dict) -> None:
 
 
 def _resolve_api_key() -> tuple[str, str]:
-    """按优先级解析 API key。返回 (key, source)。source 用于 UI 显示。"""
-    # 1. Streamlit Secrets（部署后用这个）
+    """按优先级解析 API key。返回 (key, source)。source 用于 UI 显示。
+
+    优先级（用户自己填的 > 默认作者的）：
+      1. config.json   — 用户在「设置」UI 主动填的
+      2. Streamlit Secrets — 作者默认 key（本地 .streamlit/secrets.toml 或云端面板）
+      3. 环境变量 OPENAI_API_KEY
+    """
+    # 1. config.json（用户自己填的，优先用）
+    key = (load_config().get("openai_api_key") or "").strip()
+    if key:
+        return key, "config_json"
+
+    # 2. Streamlit Secrets（默认 / 作者的 key）
     try:
         import streamlit as st  # noqa: WPS433
 
         if hasattr(st, "secrets"):
-            # st.secrets 在没有 secrets.toml 时访问 key 会报错，try 包起来
             try:
-                key = str(st.secrets["openai_api_key"]).strip()
-                if key:
-                    return key, "streamlit_secrets"
+                v = str(st.secrets["openai_api_key"]).strip()
+                if v:
+                    return v, "streamlit_secrets"
             except Exception:
                 pass
     except ImportError:
         pass
-
-    # 2. config.json（本地开发用）
-    key = (load_config().get("openai_api_key") or "").strip()
-    if key:
-        return key, "config_json"
 
     # 3. 环境变量
     import os
