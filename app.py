@@ -203,7 +203,7 @@ def render_diagnose() -> None:
                 🩺 封面体检室
             </div>
             <div style='color:rgba(255,255,255,0.92); margin-top:0.4em; font-size:1.05em;'>
-                上传你的小红书封面 → AI 医师给评分 + 病灶诊断 + 处方 + 改进版
+                两步走：①上传封面 → 🔬 AI 评分诊断　　②看完处方 → 🪄 在原图上生成改进版
             </div>
             <div style='color:rgba(255,255,255,0.8); margin-top:0.6em; font-size:0.9em;'>
                 ⚡ 视觉冲击　📝 文字呈现　🎯 构图主体　🎨 色彩情绪　✨ 小红书味
@@ -251,66 +251,35 @@ def render_diagnose() -> None:
         st.info("👆 先上传一张封面图")
         return
 
-    # ===== 一键诊断按钮：体检 + 改进图一起出 =====
+    # ===== 第 1 步：只跑 AI 评分诊断 =====
     can_diagnose = (a_left != 0)
-    gen_available = (i_left != 0)
-
+    btn1_label = "🔬 第 1 步：AI 评分诊断"
     if not can_diagnose:
-        btn_label = "❌ 诊断次数已用完（去 ⚙️ 设置填自己 key 或解锁）"
-    elif not gen_available:
-        btn_label = "🔬 仅评分（生图次数已用完）"
-    else:
-        btn_label = "🔬 开始 AI 诊断 + 生成改进版"
+        btn1_label = "❌ 诊断次数已用完（去 ⚙️ 设置填自己 key 或解锁）"
 
     if st.button(
-        btn_label,
+        btn1_label,
         type="primary",
         use_container_width=True,
         disabled=not can_diagnose,
+        key="btn_analyze",
     ):
         image_bytes = uploaded.getvalue()
-
-        # —— Step 1: 评分 ——
-        with st.spinner("AI 医师正在体检 (1/2，约 5-15 秒) ..."):
+        with st.spinner("AI 医师正在体检（约 5-15 秒）..."):
             try:
                 result = ai.analyze_cover(image_bytes, title=title)
                 st.session_state["diagnosis"] = result
                 st.session_state["image_bytes"] = image_bytes
+                # 重新做诊断 → 清掉上次的改进图，避免错位对应
                 st.session_state.pop("improved_path", None)
                 st.session_state.pop("generate_error", None)
+                st.rerun()
             except ai.NoQuotaError as e:
                 st.error(f"❌ {e}")
-                st.stop()
             except json.JSONDecodeError:
                 st.error("AI 返回的 JSON 格式坏了，请重试一次")
-                st.stop()
             except Exception as e:
                 st.error(f"❌ 诊断失败：{type(e).__name__}: {e}")
-                st.stop()
-
-        # —— Step 2: 改进图（如果还有生图配额）——
-        improvement_prompt = result.get("improvement_prompt", "")
-        if gen_available and improvement_prompt:
-            with st.spinner("AI 医师正在按处方重新作画 (2/2，约 15-30 秒) ..."):
-                try:
-                    ts = int(time.time())
-                    out = ai.ai_covers_dir() / f"improved_{ts}.png"
-                    ai.generate_improved_cover(
-                        improvement_prompt, image_bytes, out
-                    )
-                    st.session_state["improved_path"] = str(out)
-                except ai.NoQuotaError as e:
-                    st.session_state["generate_error"] = str(e)
-                except Exception as e:
-                    st.session_state["generate_error"] = (
-                        f"{type(e).__name__}: {e}"
-                    )
-        elif not gen_available:
-            st.session_state["generate_error"] = (
-                "生图次数已用完，可以去 ⚙️ 设置 输解锁码或填自己的 OpenAI key"
-            )
-
-        st.rerun()
 
     # 诊断结果
     result = st.session_state.get("diagnosis")
@@ -353,15 +322,16 @@ def render_diagnose() -> None:
         for i, p in enumerate(prescriptions, 1):
             st.markdown(f"**{i}.** {p}")
 
-    # ===== 改进版（一气呵成已生图，或显示错误 + 重试）=====
+    # ===== 第 2 步：按处方生成改进图 =====
     st.markdown("---")
-    st.markdown("### 🪄 改进版封面")
+    st.markdown("## 🪄 第 2 步：按处方生成改进版")
     improvement_prompt = result.get("improvement_prompt", "")
 
     improved_path = st.session_state.get("improved_path")
     gen_err = st.session_state.get("generate_error")
 
     if improved_path and Path(improved_path).exists():
+        # ===== 已经生成过，显示原图 vs 改进图 对比 =====
         col_orig, col_new = st.columns(2)
         with col_orig:
             st.markdown("**📍 原图**")
@@ -382,15 +352,21 @@ def render_diagnose() -> None:
                     use_container_width=True,
                 )
 
-        st.caption("⚠️ AI 生成的图仅供参考，主体大致保留但细节会变；建议作为修改方向，自己再做二次创作。")
+        st.caption(
+            "⚠️ AI 改进图仅供参考，主体大致保留但细节会变。建议作为修改方向，自己再做二次创作。"
+        )
 
-        if i_left != 0 or i_left == -1:
-            if st.button("🔄 再生成一版（再花一次生图次数）", use_container_width=True):
+        if i_left != 0:
+            if st.button(
+                "🔄 再生成一版（消耗 1 次生图）",
+                use_container_width=True,
+                key="btn_regenerate",
+            ):
                 original_bytes = st.session_state.get("image_bytes")
                 if not original_bytes or not improvement_prompt:
                     st.error("找不到原图或 prompt，重新上传 + 诊断一次")
                 else:
-                    with st.spinner("AI 正在按处方重新作画 ..."):
+                    with st.spinner("AI 正在按处方重新作画（约 15-30 秒）..."):
                         try:
                             ts = int(time.time())
                             out = ai.ai_covers_dir() / f"improved_{ts}.png"
@@ -402,17 +378,30 @@ def render_diagnose() -> None:
                         except Exception as e:
                             st.error(f"❌ 生图失败：{type(e).__name__}: {e}")
 
-    elif gen_err:
-        # 第一次 analyze 成功了，但 generate 这步失败/被跳过
-        st.warning(f"⚠️ 改进图未生成：{gen_err}")
-        if i_left != 0 and improvement_prompt:
-            if st.button(
-                "🔁 重试：按处方生成改进图",
-                type="primary",
-                use_container_width=True,
-            ):
-                original_bytes = st.session_state.get("image_bytes")
-                with st.spinner("AI 正在按处方重新作画 ..."):
+    else:
+        # ===== 还没生过图：显示生图按钮（独立的第 2 步）=====
+        if gen_err:
+            st.warning(f"⚠️ 上次生图失败：{gen_err}")
+
+        btn2_label = "🪄 在原图基础上生成改进版"
+        can_generate = (i_left != 0) and bool(improvement_prompt)
+        if i_left == 0:
+            btn2_label = "❌ 生图次数已用完"
+        elif not improvement_prompt:
+            btn2_label = "⚠️ 诊断结果缺 improvement_prompt，重做第 1 步"
+
+        if st.button(
+            btn2_label,
+            type="primary",
+            use_container_width=True,
+            disabled=not can_generate,
+            key="btn_generate",
+        ):
+            original_bytes = st.session_state.get("image_bytes")
+            if not original_bytes:
+                st.error("❌ 找不到原图，请重新上传并重做第 1 步")
+            else:
+                with st.spinner("AI 正在按处方在原图上修改（约 15-30 秒）..."):
                     try:
                         ts = int(time.time())
                         out = ai.ai_covers_dir() / f"improved_{ts}.png"
@@ -421,6 +410,9 @@ def render_diagnose() -> None:
                         )
                         st.session_state["improved_path"] = str(out)
                         st.session_state.pop("generate_error", None)
+                        st.rerun()
+                    except ai.NoQuotaError as e:
+                        st.session_state["generate_error"] = str(e)
                         st.rerun()
                     except Exception as e:
                         st.session_state["generate_error"] = (
