@@ -1,0 +1,32 @@
+# ============================================================
+# 红兔 .gitignore — 防止敏感文件和构建产物提交到 GitHub
+# ============================================================
+
+# 用户配置（含 OpenAI key，绝对不能上传）
+config.json
+
+# Streamlit secrets（本地版，云端在 share.streamlit.io 面板填）
+.streamlit/secrets.toml
+
+# 运行时数据（配额计数、生成的图片）
+data/quota.json
+data/ai_covers/
+
+# Python 缓存
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# 我的临时构建目录
+_build/
+
+# 打包产物
+*.zip
+
+# IDE / 系统
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
