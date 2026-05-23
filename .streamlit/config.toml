@@ -6,8 +6,6 @@ secondaryBackgroundColor = "#FFF7F8"   # 浅粉 — sidebar / metric / expander 
 textColor = "#1F1F1F"                  # 主文字色
 font = "sans serif"
 
-[server]
-# 默认浏览器自动打开
-headless = false
-# 默认端口（本地开发；云端会被 Streamlit Cloud 覆盖）
-port = 8502
+# 注意：不要在这里设 [server].port 或 headless。
+# - 云端 Streamlit Cloud 健康检查走默认 8501，硬设端口会导致 health check 失败
+# - 本地开发的端口和 headless 由 start.bat 命令行参数控制（--server.port 8502）
