@@ -209,7 +209,7 @@ def render_diagnose() -> None:
                 🩺 封面体检室
             </div>
             <div style='color:rgba(255,255,255,0.92); margin-top:0.4em; font-size:1.05em;'>
-                两步走：①上传封面 → 🔬 AI 评分诊断　　②看完处方 → 🪄 一键生成 3 张不同方向的改进版
+                两步走：①上传封面 → 🔬 AI 评分诊断　　②看完处方 → 🪄 一键触发 3 次不同方向的改进生图
             </div>
             <div style='color:rgba(255,255,255,0.8); margin-top:0.6em; font-size:0.9em;'>
                 ⚡ 视觉冲击　📝 文字呈现　🎯 构图主体　🎨 色彩情绪　✨ 小红书味
@@ -328,12 +328,45 @@ def render_diagnose() -> None:
         for i, p in enumerate(prescriptions, 1):
             st.markdown(f"**{i}.** {p}")
 
-    # ===== 第 2 步：一次生 3 张改进图（3 个不同方向）=====
+    # ===== 第 2 步：一次按钮生 3 次改进图（3 个不同方向）=====
     st.markdown("---")
-    st.markdown("## 🪄 第 2 步：按处方生成 3 张改进版")
-    st.caption("一次生 3 张不同方向的改进图（标题强化 / 构图重构 / 色彩调优 等），消耗 1 次生图配额")
+    st.markdown("## 🪄 第 2 步：按处方生成 3 次改进版")
+    st.caption("一次按钮触发 3 次不同方向的生图（标题强化 / 构图重构 / 色彩调优 等），消耗 1 次生图配额")
 
+    # 取 improvement_prompts（新 schema）；如果只有 improvement_prompt（老 schema），
+    # 用 3 个不同方向把单 prompt 包装成 3 个，保证旧诊断结果仍能跑通
     improvement_prompts = result.get("improvement_prompts", []) or []
+    if not improvement_prompts:
+        single = (result.get("improvement_prompt") or "").strip()
+        if single:
+            improvement_prompts = [
+                {
+                    "angle": "标题强化",
+                    "prompt": (
+                        "Keep the main subject of the original cover. "
+                        "Focus on title typography: enlarge title, bolder font, "
+                        "higher contrast against background. " + single
+                    ),
+                },
+                {
+                    "angle": "构图重构",
+                    "prompt": (
+                        "Keep the main subject. Restructure composition: "
+                        "move subject to follow rule of thirds, more breathing "
+                        "space (negative space), clearer visual hierarchy. "
+                        + single
+                    ),
+                },
+                {
+                    "angle": "色彩调优",
+                    "prompt": (
+                        "Keep the main subject. Adjust color palette: "
+                        "richer tonal harmony, lift saturation tastefully, "
+                        "warmer mood with subtle gradient. " + single
+                    ),
+                },
+            ]
+
     improved_items = st.session_state.get("improved_items", [])  # [{angle, path}*3]
     gen_err = st.session_state.get("generate_error")
 
@@ -367,7 +400,7 @@ def render_diagnose() -> None:
 
         if i_left != 0:
             if st.button(
-                "🔄 再生成一组 3 张（消耗 1 次生图配额）",
+                "🔄 再触发 3 次改进生图（消耗 1 次生图配额）",
                 use_container_width=True,
                 key="btn_regenerate",
             ):
@@ -381,7 +414,7 @@ def render_diagnose() -> None:
             st.warning(f"⚠️ 上次生图失败：{gen_err}")
 
         n_prompts = len(improvement_prompts)
-        btn2_label = "🪄 一键生成 3 张改进图（消耗 1 次生图配额）"
+        btn2_label = "🪄 一键触发 3 次改进生图（消耗 1 次生图配额）"
         can_generate = (i_left != 0) and (n_prompts >= 1)
         if i_left == 0:
             btn2_label = "❌ 生图次数已用完"
@@ -440,7 +473,7 @@ def render_diagnose() -> None:
                     st.session_state["improved_items"] = results
                     st.session_state.pop("generate_error", None)
                 else:
-                    st.session_state["generate_error"] = "3 张都生成失败，重试或检查 key"
+                    st.session_state["generate_error"] = "3 次都生成失败，重试或检查 key"
                 # 不主动 rerun — 等用户下一次交互（避免冲掉已展示的流式结果）
 
     # AI 给图像模型的 prompts（高级用户可看）— 折叠在最底
