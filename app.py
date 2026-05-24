@@ -185,13 +185,7 @@ def _score_grade(score: int) -> str:
 
 
 def _reset_diagnosis() -> None:
-    for k in (
-        "diagnosis",
-        "image_bytes",
-        "improved_path",      # 旧版兼容
-        "improved_items",     # 新版 3 张数组
-        "generate_error",
-    ):
+    for k in ("diagnosis", "image_bytes", "improved_path"):
         st.session_state.pop(k, None)
 
 
@@ -209,7 +203,7 @@ def render_diagnose() -> None:
                 🩺 封面体检室
             </div>
             <div style='color:rgba(255,255,255,0.92); margin-top:0.4em; font-size:1.05em;'>
-                两步走：①上传封面 → 🔬 AI 评分诊断　　②看完处方 → 🪄 一键生成 3 张不同方向的改进版
+                两步走：①上传封面 → 🔬 AI 评分诊断　　②看完处方 → 🪄 在原图上生成改进版
             </div>
             <div style='color:rgba(255,255,255,0.8); margin-top:0.6em; font-size:0.9em;'>
                 ⚡ 视觉冲击　📝 文字呈现　🎯 构图主体　🎨 色彩情绪　✨ 小红书味
@@ -328,38 +322,35 @@ def render_diagnose() -> None:
         for i, p in enumerate(prescriptions, 1):
             st.markdown(f"**{i}.** {p}")
 
-    # ===== 第 2 步：一次生 3 张改进图（3 个不同方向）=====
+    # ===== 第 2 步：按处方生成改进图 =====
     st.markdown("---")
-    st.markdown("## 🪄 第 2 步：按处方生成 3 张改进版")
-    st.caption("一次生 3 张不同方向的改进图（标题强化 / 构图重构 / 色彩调优 等），消耗 1 次生图配额")
+    st.markdown("## 🪄 第 2 步：按处方生成改进版")
+    improvement_prompt = result.get("improvement_prompt", "")
 
-    improvement_prompts = result.get("improvement_prompts", []) or []
-    improved_items = st.session_state.get("improved_items", [])  # [{angle, path}*3]
+    improved_path = st.session_state.get("improved_path")
     gen_err = st.session_state.get("generate_error")
 
-    if improved_items and all(Path(it["path"]).exists() for it in improved_items):
-        # ===== 已经生成完，展示原图 + 3 张改进对比 =====
-        st.markdown("### 📍 原图")
-        orig_col, _spacer = st.columns([1, 2])
-        with orig_col:
+    if improved_path and Path(improved_path).exists():
+        # ===== 已经生成过，显示原图 vs 改进图 对比 =====
+        col_orig, col_new = st.columns(2)
+        with col_orig:
+            st.markdown("**📍 原图**")
             if st.session_state.get("image_bytes"):
-                st.image(st.session_state["image_bytes"], use_container_width=True)
-
-        st.markdown("### 🆕 AI 改进版（3 个方向）")
-        cols = st.columns(len(improved_items))
-        for col, it in zip(cols, improved_items):
-            with col:
-                st.markdown(f"**{it.get('angle', '改进版')}**")
-                st.image(it["path"], use_container_width=True)
-                with open(it["path"], "rb") as f:
-                    st.download_button(
-                        "💾 下载",
-                        data=f.read(),
-                        file_name=Path(it["path"]).name,
-                        mime="image/png",
-                        use_container_width=True,
-                        key=f"dl_{Path(it['path']).name}",
-                    )
+                st.image(
+                    st.session_state["image_bytes"],
+                    use_container_width=True,
+                )
+        with col_new:
+            st.markdown("**🆕 AI 改进版**")
+            st.image(improved_path, use_container_width=True)
+            with open(improved_path, "rb") as f:
+                st.download_button(
+                    "💾 下载改进图",
+                    data=f.read(),
+                    file_name=Path(improved_path).name,
+                    mime="image/png",
+                    use_container_width=True,
+                )
 
         st.caption(
             "⚠️ AI 改进图仅供参考，主体大致保留但细节会变。建议作为修改方向，自己再做二次创作。"
@@ -367,26 +358,37 @@ def render_diagnose() -> None:
 
         if i_left != 0:
             if st.button(
-                "🔄 再生成一组 3 张（消耗 1 次生图配额）",
+                "🔄 再生成一版（消耗 1 次生图）",
                 use_container_width=True,
                 key="btn_regenerate",
             ):
-                st.session_state.pop("improved_items", None)
-                st.session_state.pop("generate_error", None)
-                st.rerun()
+                original_bytes = st.session_state.get("image_bytes")
+                if not original_bytes or not improvement_prompt:
+                    st.error("找不到原图或 prompt，重新上传 + 诊断一次")
+                else:
+                    with st.spinner("AI 正在按处方重新作画（约 15-30 秒）..."):
+                        try:
+                            ts = int(time.time())
+                            out = ai.ai_covers_dir() / f"improved_{ts}.png"
+                            ai.generate_improved_cover(
+                                improvement_prompt, original_bytes, out
+                            )
+                            st.session_state["improved_path"] = str(out)
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"❌ 生图失败：{type(e).__name__}: {e}")
 
     else:
-        # ===== 还没生过：显示第 2 步按钮 =====
+        # ===== 还没生过图：显示生图按钮（独立的第 2 步）=====
         if gen_err:
             st.warning(f"⚠️ 上次生图失败：{gen_err}")
 
-        n_prompts = len(improvement_prompts)
-        btn2_label = "🪄 一键生成 3 张改进图（消耗 1 次生图配额）"
-        can_generate = (i_left != 0) and (n_prompts >= 1)
+        btn2_label = "🪄 在原图基础上生成改进版"
+        can_generate = (i_left != 0) and bool(improvement_prompt)
         if i_left == 0:
             btn2_label = "❌ 生图次数已用完"
-        elif n_prompts == 0:
-            btn2_label = "⚠️ 诊断结果缺 improvement_prompts，重做第 1 步"
+        elif not improvement_prompt:
+            btn2_label = "⚠️ 诊断结果缺 improvement_prompt，重做第 1 步"
 
         if st.button(
             btn2_label,
@@ -399,58 +401,28 @@ def render_diagnose() -> None:
             if not original_bytes:
                 st.error("❌ 找不到原图，请重新上传并重做第 1 步")
             else:
-                # 先扣 quota（1 次按钮 = 1 次配额，不管内部生几张）
-                try:
-                    ai.consume_image_quota()
-                except ai.NoQuotaError as e:
-                    st.session_state["generate_error"] = str(e)
-                    st.rerun()
-
-                # 流式生 3 张：每个 placeholder 单独展示生成进度 + 结果
-                st.markdown("### 🆕 AI 改进版（流式生成中 ...）")
-                prompts_to_use = improvement_prompts[:3]
-                cols = st.columns(len(prompts_to_use))
-                placeholders = []
-                for col, item in zip(cols, prompts_to_use):
-                    with col:
-                        st.markdown(f"**{item.get('angle', '改进')}**")
-                        ph = st.empty()
-                        ph.info("⏳ 排队中 ...")
-                        placeholders.append(ph)
-
-                results: list[dict] = []
-                for i, (item, ph) in enumerate(zip(prompts_to_use, placeholders)):
-                    angle = item.get("angle", f"方案{i+1}")
-                    prompt_text = item.get("prompt", "")
-                    if not prompt_text:
-                        ph.error("❌ 此方向 prompt 为空")
-                        continue
-                    ph.info(f"🎨 生成中（约 15-30 秒）...")
+                with st.spinner("AI 正在按处方在原图上修改（约 15-30 秒）..."):
                     try:
-                        ts = int(time.time() * 1000)
-                        out = ai.ai_covers_dir() / f"improved_{ts}_{i}.png"
-                        ai.generate_improved_cover(prompt_text, original_bytes, out)
-                        ph.image(str(out), use_container_width=True)
-                        results.append({"angle": angle, "path": str(out)})
+                        ts = int(time.time())
+                        out = ai.ai_covers_dir() / f"improved_{ts}.png"
+                        ai.generate_improved_cover(
+                            improvement_prompt, original_bytes, out
+                        )
+                        st.session_state["improved_path"] = str(out)
+                        st.session_state.pop("generate_error", None)
+                        st.rerun()
+                    except ai.NoQuotaError as e:
+                        st.session_state["generate_error"] = str(e)
+                        st.rerun()
                     except Exception as e:
-                        ph.error(f"❌ {type(e).__name__}: {e}")
+                        st.session_state["generate_error"] = (
+                            f"{type(e).__name__}: {e}"
+                        )
+                        st.rerun()
 
-                # 保存到 session_state，rerun 后能恢复展示
-                if results:
-                    st.session_state["improved_items"] = results
-                    st.session_state.pop("generate_error", None)
-                else:
-                    st.session_state["generate_error"] = "3 张都生成失败，重试或检查 key"
-                # 不主动 rerun — 等用户下一次交互（避免冲掉已展示的流式结果）
-
-    # AI 给图像模型的 prompts（高级用户可看）— 折叠在最底
-    with st.expander("📜 AI 给图像模型的 prompts（高级用户可参考）", expanded=False):
-        if improvement_prompts:
-            for i, item in enumerate(improvement_prompts, 1):
-                st.markdown(f"**{i}. {item.get('angle', '')}**")
-                st.code(item.get("prompt", ""), language="text")
-        else:
-            st.code("（空）", language="text")
+    # AI 给图像模型的 prompt（高级用户可看）— 折叠在最底
+    with st.expander("📜 AI 给图像模型的 prompt（高级用户可参考）", expanded=False):
+        st.code(improvement_prompt or "（空）", language="text")
 
 
 # ============================================================
