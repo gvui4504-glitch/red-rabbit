@@ -325,7 +325,25 @@ def render_diagnose() -> None:
     # ===== 第 2 步：按处方生成改进图 =====
     st.markdown("---")
     st.markdown("## 🪄 第 2 步：按处方生成改进版")
-    improvement_prompt = result.get("improvement_prompt", "")
+
+    # 解析改进 prompt，做兼容（应对 AI 偶尔不按 schema 返回 / 历史残留数据）：
+    #   1. 优先取 improvement_prompt（当前 schema）
+    #   2. 否则从 improvement_prompts 数组（旧版本残留）的第一个里捞
+    #   3. 再否则从 prescriptions 拼一个兜底英文 prompt（最弱兼容）
+    improvement_prompt = (result.get("improvement_prompt") or "").strip()
+    if not improvement_prompt:
+        arr = result.get("improvement_prompts") or []
+        if isinstance(arr, list) and arr:
+            first = arr[0] if isinstance(arr[0], dict) else {}
+            improvement_prompt = (first.get("prompt") or "").strip()
+    if not improvement_prompt:
+        # 终极兜底：用 prescriptions 拼一段英文（中文 -> AI 自己理解）
+        pres = result.get("prescriptions") or []
+        if pres:
+            improvement_prompt = (
+                "Keep the main subject of the original cover. "
+                "Apply these improvements: " + " | ".join(str(p) for p in pres)
+            )
 
     improved_path = st.session_state.get("improved_path")
     gen_err = st.session_state.get("generate_error")
@@ -420,9 +438,12 @@ def render_diagnose() -> None:
                         )
                         st.rerun()
 
-    # AI 给图像模型的 prompt（高级用户可看）— 折叠在最底
-    with st.expander("📜 AI 给图像模型的 prompt（高级用户可参考）", expanded=False):
+    # AI 给图像模型的 prompt + 完整诊断 JSON（高级用户 / 排错可看）— 折叠在最底
+    with st.expander("📜 AI prompt + 完整诊断 JSON（高级用户 / 排错）", expanded=False):
+        st.markdown("**改进图用的 prompt**")
         st.code(improvement_prompt or "（空）", language="text")
+        st.markdown("**完整诊断 JSON**（如果上面 prompt 为空，看这里 AI 实际返回了什么字段）")
+        st.json(result)
 
 
 # ============================================================
