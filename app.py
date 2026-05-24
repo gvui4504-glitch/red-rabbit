@@ -311,7 +311,7 @@ def render_diagnose() -> None:
             f"{label} — **{score}/100** {_score_emoji(score)}", expanded=True
         ):
             st.caption(sub)
-            st.markdown(f"**🔍 缺点**：{d.get('diagnosis', '（AI 没给出）')}")
+            st.markdown(f"**📋 评价**：{d.get('diagnosis', '（AI 没给出）')}")
             st.markdown(f"**💊 处方**：{d.get('prescription', '（AI 没给出）')}")
             st.progress(score / 100)
 
